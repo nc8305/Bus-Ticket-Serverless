@@ -102,3 +102,6 @@ tmp/
 # Git lock files
 *.lock
 data/
+
+# Azure Functions local settings
+local.settings.json
