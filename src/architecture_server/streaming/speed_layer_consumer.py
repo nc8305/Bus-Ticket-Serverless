@@ -8,6 +8,7 @@ This consumer reads from Kafka and writes to PostgreSQL for real-time visualizat
 import json
 import sys
 import signal
+import psycopg2.extras
 from datetime import datetime
 from confluent_kafka import Consumer, KafkaError, KafkaException
 import psycopg2
@@ -24,8 +25,8 @@ KAFKA_CONFIG = {
     'auto.offset.reset': 'latest',
     'enable.auto.commit': True,
     'auto.commit.interval.ms': 1000,
-    'session.timeout.ms': 30000,
-    'heartbeat.interval.ms': 10000,
+    'session.timeout.ms': 45000,
+    'heartbeat.interval.ms': 30000,
 }
 
 POSTGRES_CONFIG = {
@@ -70,7 +71,7 @@ class SpeedLayerProcessor:
         self.processed_count = 0
         self.failed_count = 0
         self.batch = []
-        self.batch_size = 100
+        self.batch_size = 10000
         self.last_flush = time.time()
         self.flush_interval = 1.0  # seconds
         
@@ -181,31 +182,30 @@ class SpeedLayerProcessor:
                     last_updated = NOW()
             """
             
-            for record in self.batch:
-                # Insert to stream
-                cursor.execute(stream_sql, (
-                    record['vehicle_id'],
-                    record['latitude'],
-                    record['longitude'],
-                    record['speed'],
-                    record['driver_id'],
-                    record['door_up'],
-                    record['door_down'],
-                    record['event_time'],
-                ))
-                
-                # Update realtime
-                cursor.execute(realtime_sql, (
-                    record['vehicle_id'],
-                    record['latitude'],
-                    record['longitude'],
-                    record['speed'],
-                    record['driver_id'],
-                    record['door_up'],
-                    record['door_down'],
-                ))
+            # 1. Chuẩn bị danh sách dữ liệu (Tuple) thay vì chạy vòng lặp execute
+            data_to_insert = [
+                (
+                    record['vehicle_id'], record['latitude'], record['longitude'],
+                    record['speed'], record['driver_id'], record['door_up'],
+                    record['door_down'], record['event_time']
+                ) for record in self.batch
+            ]
+            
+            # Đối với bảng realtime, cấu trúc data tương tự nhưng không có event_time
+            data_to_realtime = [
+                (
+                    record['vehicle_id'], record['latitude'], record['longitude'],
+                    record['speed'], record['driver_id'], record['door_up'],
+                    record['door_down']
+                ) for record in self.batch
+            ]
+
+            # 2. Thực hiện BULK INSERT (Ghi một cục dữ liệu lớn trong 1 lần gọi)
+            psycopg2.extras.execute_batch(cursor, stream_sql, data_to_insert, page_size=1000)
+            psycopg2.extras.execute_batch(cursor, realtime_sql, data_to_realtime, page_size=1000)
             
             conn.commit()
+
             print(f"Flushed {len(self.batch)} records | Total: {self.processed_count} | Failed: {self.failed_count}")
             
             self.batch = []
@@ -219,7 +219,6 @@ class SpeedLayerProcessor:
         finally:
             if conn:
                 self.db_pool.return_connection(conn)
-    
     def _shutdown(self):
         """Graceful shutdown"""
         print("\nShutting down...")

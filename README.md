@@ -1,324 +1,123 @@
-# 🚌 Bus GPS Lambda Architecture
+# 🚌 Bus System Dual Architecture (Server & Serverless)
 
-Hệ thống **Big Data Pipeline** xử lý dữ liệu GPS xe buýt theo kiến trúc **Lambda Architecture** với real-time streaming và batch processing.
+Hệ thống **Big Data & Serverless Pipeline** xử lý dữ liệu xe buýt (GPS & Đặt vé). Dự án bao gồm hai kiến trúc có thể chạy độc lập hoặc song song để so sánh và trình bày demo:
 
-![Architecture](https://img.shields.io/badge/Architecture-Lambda-blue)
+1. **Server-based (Lambda Architecture)**: Dùng Kafka, Spark, PostgreSQL cho real-time streaming và batch processing dữ liệu GPS.
+2. **Serverless**: Dùng Azure API, Azure Service Bus, Azure Functions và MongoDB Atlas để xử lý đặt vé xe buýt tốc độ cao không lo sập server, không cần bảo trì hạ tầng.
+
+![Architecture](https://img.shields.io/badge/Architecture-Dual_Mode-blue)
 ![Kafka](https://img.shields.io/badge/Kafka-3.x-orange)
 ![Spark](https://img.shields.io/badge/Spark-3.5-yellow)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue)
-![Grafana](https://img.shields.io/badge/Grafana-10.2-green)
-![Docker](https://img.shields.io/badge/Docker-Compose-2496ED)
+![Azure](https://img.shields.io/badge/Azure-Functions-blue)
+![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-green)
 
 ---
 
-## 📊 Dataset
+## 🏗️ Hai Kiến Trúc Trọng Tâm
 
-- **Nguồn dữ liệu**: GPS xe buýt TP.HCM (~9.8 triệu bản ghi/ngày, 2,575 xe)
-- **Kích thước**: 849MB raw data
-- **Thuộc tính**:
-  - `datetime` - Thời gian ghi nhận
-  - `vehicle_id` - Mã xe (biển số)
-  - `lng`, `lat` - Tọa độ GPS
-  - `speed` - Tốc độ (km/h)
-  - `driver` - Mã tài xế
-  - `door_up`, `door_down` - Trạng thái cửa
-
----
-
-## 🏗️ Lambda Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           LAMBDA ARCHITECTURE                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│   ┌──────────┐     ┌─────────────────────────────────────────────────────┐  │
-│   │  CSV     │     │                   SPEED LAYER                       │  │
-│   │  Data    │────▶│  Kafka ──▶ Consumer ──▶ PostgreSQL ──▶ Grafana     │  │
-│   │          │     │  (Real-time streaming, <1s latency)                 │  │
-│   └──────────┘     └─────────────────────────────────────────────────────┘  │
-│        │                                                                     │
-│        │           ┌─────────────────────────────────────────────────────┐  │
-│        │           │                   BATCH LAYER                        │  │
-│        └──────────▶│  HDFS ──▶ Spark ──▶ PostgreSQL                      │  │
-│                    │  (Daily aggregations, analytics)                     │  │
-│                    └─────────────────────────────────────────────────────┘  │
-│                                                                              │
-│                    ┌─────────────────────────────────────────────────────┐  │
-│                    │                  SERVING LAYER                       │  │
-│                    │  PostgreSQL (Speed + Batch views)                    │  │
-│                    │  Grafana Dashboard (Visualization)                   │  │
-│                    └─────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────────┘
+### 1. Server-based (Lambda Architecture)
+Chuyên trị dữ liệu GPS real-time và phân tích batch cuối ngày. Chạy 100% trên container Docker nội bộ.
+```text
+[Load Tester] ──▶ Kafka ──▶ Spark Streaming ──▶ PostgreSQL ──▶ Grafana
 ```
 
----
-
-## 🐳 Tech Stack
-
-| Component      | Technology   | Version | Port | Role                      |
-| -------------- | ------------ | ------- | ---- | ------------------------- |
-| Message Broker | Apache Kafka | 7.4.0   | 9092 | Real-time streaming       |
-| Storage        | Hadoop HDFS  | 3.2.1   | 9870 | Distributed storage       |
-| Processing     | Apache Spark | 3.5.0   | 8082 | Batch & Stream processing |
-| Database       | PostgreSQL   | 15      | 5432 | Serving layer             |
-| Visualization  | Grafana      | 10.2.0  | 3001 | Real-time dashboard       |
-| DB Admin       | pgAdmin      | 4       | 5050 | Database management       |
-| Coordination   | Zookeeper    | 7.4.0   | 2181 | Kafka coordination        |
+### 2. Serverless (Azure Cloud)
+Chuyên xử lý đặt vé khối lượng siêu lớn. Không tốn dung lượng ổ cứng, không cần cài đặt container. Tự động mở rộng (auto-scale).
+```text
+[Load Tester] ──▶ Azure API ──▶ Azure Service Bus ──▶ Azure Functions ──▶ MongoDB Atlas
+```
 
 ---
 
 ## 📁 Project Structure
 
-```
+Cấu trúc dự án được phân chia rạch ròi thành 3 mảng độc lập, rất dễ so sánh:
+
+```text
 Bus-GPS/
-├── docker-compose.yml          # Docker infrastructure
-├── hadoop.env                  # Hadoop configuration
-├── requirements.txt            # Python dependencies
+├── src/
+│   ├── architecture_server/        # Hệ thống Lambda cũ
+│   │   ├── kafka/                  # Kafka config & tools
+│   │   ├── spark/                  # Spark batch jobs
+│   │   └── streaming/              # Spark Streaming / Consumer
+│   │
+│   └── architecture_serverless/    # Hệ thống Serverless mới
+│       └── azure_worker/           # Azure Functions app (Python)
 │
-├── config/
-│   └── grafana/
-│       ├── dashboards/
-│       │   └── bus_realtime.json       # Grafana dashboard
-│       └── provisioning/
-│           ├── dashboards/dashboards.yml
-│           └── datasources/datasources.yml
+├── load_tester/                    # Công cụ bắn tải (Load testing)
+│   └── demo_load_tester.py         # Script đa năng test cả 2 hệ thống cùng lúc
 │
-├── data/
-│   ├── raw_2025-04-01.csv      # Full dataset (849MB)
-│   └── samples/                # Test datasets
-│       ├── sample_quick_test.csv    (1,000 records)
-│       ├── sample_small_dev.csv     (10,000 records)
-│       ├── sample_medium_test.csv   (50,000 records)
-│       └── sample_first_hour.csv    (100,000 records)
-│
-├── scripts/
-│   ├── init_db.sql             # PostgreSQL schema
-│   ├── create_sample_data.py   # Generate sample data
-│   ├── run_demo.ps1            # Windows demo script
-│   └── run_demo.sh             # Linux demo script
-│
-└── src/
-    ├── kafka/
-    │   ├── producer.py         # CSV → Kafka producer
-    │   └── consumer.py         # Kafka → Console consumer
-    │
-    ├── streaming/
-    │   └── speed_layer_consumer.py  # Kafka → PostgreSQL (Speed Layer)
-    │
-    └── spark/
-        ├── batch_layer.py      # HDFS → PostgreSQL (Batch Layer)
-        └── batch_processing.py # Spark batch jobs
+├── config/                         # Cấu hình Grafana/Dashboards
+├── data/                           # Dữ liệu CSV mẫu
+├── scripts/                        # DB Init scripts
+├── docker-compose.yml              # Hạ tầng Docker cho Server-based
+└── requirements.txt                # Thư viện Python
 ```
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Hướng Dẫn Chạy Thử (Quick Start)
 
-### 1. Prerequisites
-
-- Docker Desktop
-- Python 3.10+
-- Git
-
-### 2. Clone & Setup
-
+### 1. Cài đặt thư viện Python
+Dự án sử dụng Python 3.10+. Khuyên dùng môi trường ảo (`.venv`).
 ```bash
-git clone https://github.com/nc8305/Bus-GPS.git
-cd Bus-GPS
+pip install -r requirements.txt
+pip install aiohttp aiokafka azure-functions pymongo
 ```
 
-### 3. Start Infrastructure
-
+### 2. Bật Hạ Tầng Server-based (Docker)
+Để chuẩn bị test nhánh Kafka/Spark/Postgres:
 ```bash
-# Start all services
+# Bật toàn bộ dịch vụ (Zookeeper, Kafka, Spark, DB, Grafana...)
 docker-compose up -d
 
-# Wait for services to be healthy (~60s)
-docker ps
-
-# Create Kafka topic
-docker exec kafka kafka-topics --create \
-  --bootstrap-server localhost:9092 \
-  --topic bus-gps-tracking \
-  --partitions 3 \
-  --replication-factor 1
-
-# Initialize PostgreSQL database
+# Chờ khoảng 1 phút để Kafka và Postgres khởi động
+# Khởi tạo Database Analytics
 docker exec postgres psql -U admin -d postgres -c "CREATE DATABASE bus_analytics;"
 cat scripts/init_db.sql | docker exec -i postgres psql -U admin -d bus_analytics
 ```
 
-### 4. Install Python Dependencies
+### 3. Khởi chạy Load Tester (Bắn tải dữ liệu)
 
+Sử dụng công cụ `demo_load_tester.py` để "nã đạn" vào hệ thống.
+
+**Chạy riêng Kafka (Server):**
 ```bash
-pip install confluent-kafka psycopg2-binary pyspark
+python load_tester/demo_load_tester.py --mode server --requests 50000 --type gps
 ```
+*(Lưu ý: Phải đảm bảo lệnh `docker-compose up -d` ở Bước 2 đã chạy xong).*
 
-### 5. Run the Pipeline
-
-**Terminal 1 - Start Speed Layer Consumer:**
-
+**Chạy riêng Azure (Serverless):**
 ```bash
-python src/streaming/speed_layer_consumer.py
+python load_tester/demo_load_tester.py --mode serverless --requests 50000 --type ticket
 ```
+*(Lưu ý: Phải thay thế `<LINK_AZURE_API_CUA_BAN_SAU_NAY>` trong file `demo_load_tester.py` bằng link API thật).*
 
-**Terminal 2 - Send Data via Producer:**
-
+**Chạy Đua SONG SONG (Trùm Cuối Demo):**
 ```bash
-# Quick test (1000 records)
-python src/kafka/producer.py data/samples/sample_quick_test.csv 1000
-
-# Medium test (50000 records)
-python src/kafka/producer.py data/samples/sample_medium_test.csv 50000
-
-# Full data
-python src/kafka/producer.py data/raw_2025-04-01.csv
+python load_tester/demo_load_tester.py --mode both --requests 50000 --type ticket
 ```
-
-### 6. Run Batch Layer (Tổng hợp cuối ngày)
-
-```bash
-# Chạy Spark batch để tổng hợp dữ liệu theo ngày
-# Thay 2025-03-23 bằng ngày có trong file CSV của bạn
-python src/spark/batch_layer.py data/raw_2025-04-01.csv 2025-03-23
-```
-
-### 7. View Dashboard
-
-Open Grafana: http://localhost:3001
-
-- **Username**: admin
-- **Password**: admin123
-- Navigate to: **Dashboards → Bus GPS → Bus GPS Real-time Dashboard**
+*(Khi chạy lệnh này, bạn sẽ thấy 2 thanh tiến trình hoặc log báo kết quả chạy đua với nhau trực tiếp trên màn hình).*
 
 ---
 
-## 📊 Dashboard Features
+## 📊 Dashboard & Giám Sát
 
-| Panel                   | Description                             |
-| ----------------------- | --------------------------------------- |
-| Active Buses            | Count of buses active in last 5 minutes |
-| Avg Speed (km/h)        | Average speed of all buses              |
-| Events (Last Hour)      | Total GPS events in the last hour       |
-| Door Events (1h)        | Door open/close events                  |
-| Real-time Bus Locations | Geo-map showing bus positions           |
-| Speed Over Time         | Time-series chart of speed              |
+- **Grafana (Dành cho Server-based)**: http://localhost:3001 
+  - Username: `admin` / Password: `admin123`
+  - Dashboard nằm ở mục: `Dashboards → Bus GPS Real-time Dashboard`
+- **Spark Master**: http://localhost:8082
+- **pgAdmin (Quản lý Postgres)**: http://localhost:5050
+  - Email: `admin@busgps.com` / Password: `admin123`
 
 ---
 
-## 🗄️ Database Schema
-
-### Speed Layer Tables (Real-time)
-
-```sql
--- Current bus locations (latest position per vehicle)
-bus_realtime_location (
-    vehicle_id, latitude, longitude, speed,
-    driver_id, door_up, door_down, last_updated
-)
-
--- Streaming history (last 24 hours)
-bus_tracking_stream (
-    id, vehicle_id, latitude, longitude, speed,
-    driver_id, door_up, door_down, event_time, ingested_at
-)
-```
-
-### Batch Layer Tables (Analytics)
-
-```sql
--- Daily vehicle summary
-daily_vehicle_summary (
-    summary_date, vehicle_id, total_records, total_distance_km,
-    avg_speed, max_speed, active_hours, door_events
-)
-
--- Hourly traffic analysis
-hourly_traffic_analysis (
-    analysis_date, hour_of_day, active_vehicles,
-    total_events, avg_speed, speed_variance
-)
-
--- Driver performance
-driver_performance (
-    report_date, driver_id, vehicles_driven, total_events,
-    avg_speed, max_speed, total_door_events
-)
-
--- Geographic hotspots
-geo_hotspots (
-    analysis_date, lat_bucket, lng_bucket, event_count,
-    unique_vehicles, avg_speed
-)
-```
-
----
-
-## 🔧 Service URLs
-
-| Service       | URL                   | Credentials             |
-| ------------- | --------------------- | ----------------------- |
-| Grafana       | http://localhost:3001 | admin / admin123        |
-| pgAdmin       | http://localhost:5050 | admin@admin.com / admin |
-| Spark Master  | http://localhost:8082 | -                       |
-| HDFS Namenode | http://localhost:9870 | -                       |
-| Kafka         | localhost:9092        | -                       |
-
----
-
-## 🧪 Testing
-
-### Test Kafka Connection
-
+## 🛑 Dừng Hệ Thống Docker
+Khi không cần sử dụng đến hệ thống Server-based nữa, hãy dọn dẹp để tiết kiệm RAM:
 ```bash
-# List topics
-docker exec kafka kafka-topics --list --bootstrap-server localhost:9092
-
-# Consume messages
-docker exec kafka kafka-console-consumer \
-  --bootstrap-server localhost:9092 \
-  --topic bus-gps-tracking \
-  --from-beginning --max-messages 5
-```
-
-### Test PostgreSQL
-
-```bash
-# Check tables
-docker exec postgres psql -U admin -d bus_analytics -c "\dt"
-
-# Query real-time data
-docker exec postgres psql -U admin -d bus_analytics -c \
-  "SELECT COUNT(*) FROM bus_realtime_location;"
-```
-
----
-
-## 📈 Performance
-
-| Metric              | Value           |
-| ------------------- | --------------- |
-| Producer Throughput | ~5,000 msgs/sec |
-| Consumer Latency    | <1 second       |
-| Kafka Partitions    | 3               |
-| Compression         | LZ4             |
-| Batch Insert Size   | 100 records     |
-
----
-
-## 🛑 Stopping Services
-
-```bash
-# Stop all services
+# Tắt tất cả container
 docker-compose down
 
-# Stop and remove volumes (clean reset)
+# Tắt và xóa luôn dữ liệu cũ (Xóa volume)
 docker-compose down -v
 ```
----
-
-## 📝 License
-
-MIT License
-# Bus-GPS

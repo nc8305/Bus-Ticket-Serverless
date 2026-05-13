@@ -111,7 +111,7 @@ services:
     networks:
       - lambda-network
     volumes:
-      - ./src/spark:/opt/spark-apps
+      - ./src/architecture_server/spark:/opt/spark-apps
       - ./data:/opt/spark-data
 
   # 6. Spark Worker - Processing node
@@ -127,7 +127,7 @@ services:
     networks:
       - lambda-network
     volumes:
-      - ./src/spark:/opt/spark-apps
+      - ./src/architecture_server/spark:/opt/spark-apps
       - ./data:/opt/spark-data
 
   # ===== SERVING LAYER - DATABASE =====

@@ -1,0 +1,9 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "SERVICE_BUS_CONNECTION_STRING": "<YOUR_SERVICE_BUS_CONNECTION_STRING>",
+    "MONGODB_URI": "mongodb+srv://<user>:<pass>@cluster.mongodb.net/"
+  }
+}

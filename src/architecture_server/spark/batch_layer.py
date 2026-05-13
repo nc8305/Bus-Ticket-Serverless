@@ -205,7 +205,7 @@ def save_to_postgres(df, table_name, mode="append"):
         .option("user", POSTGRES_CONFIG['user']) \
         .option("password", POSTGRES_CONFIG['password']) \
         .option("driver", POSTGRES_CONFIG['driver']) \
-        .mode(mode) \
+        .mode("overwrite") \
         .save()
     
     print(f"Saved {df.count()} records to {table_name}")
