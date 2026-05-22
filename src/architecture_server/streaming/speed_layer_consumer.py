@@ -167,14 +167,16 @@ class SpeedLayerProcessor:
             # Insert into stream table
             stream_sql = """
                 INSERT INTO bus_tracking_stream
-                (vehicle_id, latitude, longitude, speed, driver_id, door_up, door_down, event_time)
+                (vehicle_id, latitude, longitude, speed, 
+                 driver_id, door_up, door_down, event_time)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """
 
             # Update realtime location table
             realtime_sql = """
                 INSERT INTO bus_realtime_location
-                (vehicle_id, latitude, longitude, speed, driver_id, door_up, door_down, last_updated)
+                (vehicle_id, latitude, longitude, speed, 
+                 driver_id, door_up, door_down, last_updated)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
                 ON CONFLICT (vehicle_id) DO UPDATE SET
                     latitude = EXCLUDED.latitude,
