@@ -69,17 +69,17 @@ BUS_SCHEMA = StructType([
 def load_data(spark, source_path):
     """Load data from CSV or HDFS"""
     print(f"Loading data from: {source_path}")
-    
+
     df = spark.read \
         .option("header", "true") \
         .option("inferSchema", "true") \
         .csv(source_path)
-    
+
     # Convert datetime string to timestamp
     df = df.withColumn("event_time", col("datetime").cast(TimestampType()))
     df = df.withColumn("event_date", date_format("event_time", "yyyy-MM-dd"))
     df = df.withColumn("event_hour", hour("event_time"))
-    
+
     print(f"Loaded {df.count()} records")
     return df
 
@@ -87,7 +87,7 @@ def load_data(spark, source_path):
 def generate_daily_vehicle_summary(df, report_date):
     """Generate daily summary per vehicle"""
     print(f"Generating daily vehicle summary for {report_date}...")
-    
+
     summary = df.filter(col("event_date") == report_date) \
         .groupBy("vehicle") \
         .agg(
@@ -97,11 +97,11 @@ def generate_daily_vehicle_summary(df, report_date):
             sum(when(col("door_up"), 1).otherwise(0)).alias("total_passengers_up"),
             sum(when(col("door_down"), 1).otherwise(0)).alias("total_passengers_down"),
             count(when(col("speed") == 0, True)).alias("total_stops"),
-        ) \
+    ) \
         .withColumn("report_date", lit(report_date).cast("date")) \
         .withColumn("total_distance_km", col("total_events") * 0.01) \
         .withColumn("operating_hours", col("total_events") / 3600.0)
-    
+
     return summary.select(
         "report_date",
         col("vehicle").alias("vehicle_id"),
@@ -118,7 +118,7 @@ def generate_daily_vehicle_summary(df, report_date):
 def generate_hourly_traffic_analysis(df, report_date):
     """Generate hourly traffic analysis"""
     print(f"Generating hourly traffic analysis for {report_date}...")
-    
+
     hourly = df.filter(col("event_date") == report_date) \
         .groupBy("event_hour") \
         .agg(
@@ -126,9 +126,9 @@ def generate_hourly_traffic_analysis(df, report_date):
             avg("speed").alias("avg_speed"),
             sum(when(col("door_up"), 1).otherwise(0) +
                 when(col("door_down"), 1).otherwise(0)).alias("total_door_events"),
-        ) \
+    ) \
         .withColumn("report_date", lit(report_date).cast("date"))
-    
+
     return hourly.select(
         "report_date",
         col("event_hour").alias("hour_of_day"),
@@ -141,7 +141,7 @@ def generate_hourly_traffic_analysis(df, report_date):
 def generate_driver_performance(df, report_date):
     """Generate driver performance metrics"""
     print(f"Generating driver performance for {report_date}...")
-    
+
     driver_stats = df.filter(col("event_date") == report_date) \
         .filter(col("driver").isNotNull()) \
         .groupBy("driver") \
@@ -150,7 +150,7 @@ def generate_driver_performance(df, report_date):
             avg("speed").alias("avg_speed"),
             max("speed").alias("max_speed"),
             count(when(col("speed") > 60, True)).alias("speeding_events"),
-        ) \
+    ) \
         .withColumn("report_date", lit(report_date).cast("date")) \
         .withColumn("total_distance_km", col("total_events") * 0.01) \
         .withColumn(
@@ -159,8 +159,8 @@ def generate_driver_performance(df, report_date):
             .when(col("speeding_events") < 5, 90)
             .when(col("speeding_events") < 10, 80)
             .otherwise(70)
-        )
-    
+    )
+
     return driver_stats.select(
         "report_date",
         col("driver").alias("driver_id"),
@@ -174,7 +174,7 @@ def generate_driver_performance(df, report_date):
 def generate_geo_hotspots(df, report_date):
     """Generate geographic hotspots"""
     print(f"Generating geo hotspots for {report_date}...")
-    
+
     # Round lat/lng to create geographic buckets
     hotspots = df.filter(col("event_date") == report_date) \
         .withColumn("lat_bucket", spark_round(col("lat"), 3)) \
@@ -183,11 +183,11 @@ def generate_geo_hotspots(df, report_date):
         .agg(
             count("*").alias("total_events"),
             avg("speed").alias("avg_speed"),
-        ) \
+    ) \
         .filter(col("total_events") > 10) \
         .withColumn("report_date", lit(report_date).cast("date")) \
         .withColumn("peak_hour", lit(8))  # Placeholder
-    
+
     return hotspots.select(
         "report_date",
         "lat_bucket",
@@ -201,7 +201,7 @@ def generate_geo_hotspots(df, report_date):
 def save_to_postgres(df, table_name, mode="append"):
     """Save DataFrame to PostgreSQL"""
     print(f"Saving to PostgreSQL table: {table_name}")
-    
+
     df.write \
         .format("jdbc") \
         .option("url", POSTGRES_CONFIG['url']) \
@@ -211,7 +211,7 @@ def save_to_postgres(df, table_name, mode="append"):
         .option("driver", POSTGRES_CONFIG['driver']) \
         .mode("overwrite") \
         .save()
-    
+
     print(f"Saved {df.count()} records to {table_name}")
 
 
@@ -224,43 +224,43 @@ def run_batch_job(source_path, report_date=None):
     print("=" * 60)
     print("BATCH LAYER - Bus GPS Analytics")
     print("=" * 60)
-    
+
     # Default to yesterday
     if report_date is None:
         report_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    
+
     print(f"Report Date: {report_date}")
     print(f"Source: {source_path}")
     print("-" * 60)
-    
+
     # Create Spark session
     spark = create_spark_session()
-    
+
     try:
         # Load data
         df = load_data(spark, source_path)
         df.cache()
-        
+
         # Generate reports
         vehicle_summary = generate_daily_vehicle_summary(df, report_date)
         hourly_traffic = generate_hourly_traffic_analysis(df, report_date)
         driver_perf = generate_driver_performance(df, report_date)
         hotspots = generate_geo_hotspots(df, report_date)
-        
+
         # Save to PostgreSQL
         save_to_postgres(vehicle_summary, "daily_vehicle_summary")
         save_to_postgres(hourly_traffic, "hourly_traffic_analysis")
         save_to_postgres(driver_perf, "driver_performance")
         save_to_postgres(hotspots, "geo_hotspots")
-        
+
         print("-" * 60)
         print("BATCH JOB COMPLETED SUCCESSFULLY")
         print("=" * 60)
-        
+
     except Exception as e:
         print(f"Batch job failed: {e}")
         raise
-    
+
     finally:
         spark.stop()
 
@@ -273,12 +273,12 @@ if __name__ == "__main__":
     # Default paths
     source_path = "data/raw_2025-04-01.csv"
     report_date = date.today()
-    
+
     # Parse command line arguments
     if len(sys.argv) > 1:
         source_path = sys.argv[1]
-    
+
     if len(sys.argv) > 2:
         report_date = sys.argv[2]
-    
+
     run_batch_job(source_path, report_date)

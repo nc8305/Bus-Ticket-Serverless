@@ -5,7 +5,6 @@ import random
 from aiokafka import AIOKafkaProducer
 
 
-
 # Trả về đúng data GPS nguyên bản
 def generate_gps_payload(vehicle_index):
     return {

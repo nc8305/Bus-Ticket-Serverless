@@ -47,13 +47,13 @@ class DatabasePool:
         self.pool = pool.ThreadedConnectionPool(
             min_conn, max_conn, **config
         )
-    
+
     def get_connection(self):
         return self.pool.getconn()
-    
+
     def return_connection(self, conn):
         self.pool.putconn(conn)
-    
+
     def close_all(self):
         self.pool.closeall()
 
@@ -74,15 +74,15 @@ class SpeedLayerProcessor:
         self.batch_size = 10000
         self.last_flush = time.time()
         self.flush_interval = 1.0  # seconds
-        
+
         # Setup signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
-    
+
     def _signal_handler(self, signum, frame):
         print("\nReceived shutdown signal...")
         self.running = False
-    
+
     def start(self):
         """Start consuming messages"""
         print("Speed Layer Consumer Starting...")
@@ -90,43 +90,43 @@ class SpeedLayerProcessor:
         print(f"Kafka: {KAFKA_CONFIG['bootstrap.servers']}")
         print(f"PostgreSQL: {POSTGRES_CONFIG['host']}:{POSTGRES_CONFIG['port']}")
         print("-" * 50)
-        
+
         self.consumer.subscribe(self.topics)
-        
+
         try:
             while self.running:
                 msg = self.consumer.poll(timeout=0.1)
-                
+
                 if msg is None:
                     # Check if we need to flush batch
                     if self.batch and (time.time() - self.last_flush) > self.flush_interval:
                         self._flush_batch()
                     continue
-                
+
                 if msg.error():
                     if msg.error().code() == KafkaError._PARTITION_EOF:
                         continue
                     else:
                         raise KafkaException(msg.error())
-                
+
                 # Process message
                 self._process_message(msg)
-                
+
                 # Flush if batch is full
                 if len(self.batch) >= self.batch_size:
                     self._flush_batch()
-        
+
         except Exception as e:
             print(f"Error: {e}")
-        
+
         finally:
             self._shutdown()
-    
+
     def _process_message(self, msg):
         """Process a single Kafka message"""
         try:
             value = json.loads(msg.value().decode('utf-8'))
-            
+
             # Parse and validate
             record = {
                 'vehicle_id': value.get('vehicle'),
@@ -138,7 +138,7 @@ class SpeedLayerProcessor:
                 'door_down': value.get('door_down', False),
                 'event_time': value.get('datetime'),
             }
-            
+
             # Validate required fields
             if (
                 not record['vehicle_id']
@@ -147,23 +147,23 @@ class SpeedLayerProcessor:
             ):
                 self.failed_count += 1
                 return
-            
+
             self.batch.append(record)
             self.processed_count += 1
-            
+
         except Exception:
             self.failed_count += 1
-    
+
     def _flush_batch(self):
         """Flush batch to PostgreSQL"""
         if not self.batch:
             return
-        
+
         conn = None
         try:
             conn = self.db_pool.get_connection()
             cursor = conn.cursor()
-            
+
             # Insert into stream table
             stream_sql = """
                 INSERT INTO bus_tracking_stream
@@ -185,7 +185,7 @@ class SpeedLayerProcessor:
                     door_down = EXCLUDED.door_down,
                     last_updated = NOW()
             """
-            
+
             # 1. Chuẩn bị danh sách dữ liệu (Tuple) thay vì chạy vòng lặp execute
             data_to_insert = [
                 (
@@ -194,7 +194,7 @@ class SpeedLayerProcessor:
                     record['door_down'], record['event_time']
                 ) for record in self.batch
             ]
-            
+
             # Đối với bảng realtime, cấu trúc data tương tự nhưng không có event_time
             data_to_realtime = [
                 (
@@ -207,22 +207,22 @@ class SpeedLayerProcessor:
             # 2. Thực hiện BULK INSERT (Ghi một cục dữ liệu lớn trong 1 lần gọi)
             psycopg2.extras.execute_batch(cursor, stream_sql, data_to_insert, page_size=1000)
             psycopg2.extras.execute_batch(cursor, realtime_sql, data_to_realtime, page_size=1000)
-            
+
             conn.commit()
 
             print(
                 f"Flushed {len(self.batch)} records | "
                 f"Total: {self.processed_count} | Failed: {self.failed_count}"
             )
-            
+
             self.batch = []
             self.last_flush = time.time()
-            
+
         except Exception as e:
             print(f"Database error: {e}")
             if conn:
                 conn.rollback()
-        
+
         finally:
             if conn:
                 self.db_pool.return_connection(conn)
@@ -230,14 +230,14 @@ class SpeedLayerProcessor:
     def _shutdown(self):
         """Graceful shutdown"""
         print("\nShutting down...")
-        
+
         # Flush remaining batch
         if self.batch:
             self._flush_batch()
-        
+
         # Close consumer
         self.consumer.close()
-        
+
         # Close database connections
         self.db_pool.close_all()
 
