@@ -25,11 +25,9 @@ except Exception as e:
 @app.service_bus_queue_output(
     arg_name="msg",
     connection="SERVICE_BUS_CONNECTION_STRING",
-    queue_name="ticket-queue"
+    queue_name="ticket-queue",
 )
-def http_to_service_bus(
-    req: func.HttpRequest, msg: func.Out[str]
-) -> func.HttpResponse:
+def http_to_service_bus(req: func.HttpRequest, msg: func.Out[str]) -> func.HttpResponse:
     try:
         # Nhận cục JSON từ Load Tester
         req_body = req.get_json()
@@ -39,10 +37,11 @@ def http_to_service_bus(
 
         return func.HttpResponse(
             "Đã ghi nhận yêu cầu đặt vé vào hàng đợi!",
-            status_code=202  # HTTP 202: Đã tiếp nhận nhưng chưa xử lý xong
+            status_code=202,  # HTTP 202: Đã tiếp nhận nhưng chưa xử lý xong
         )
     except ValueError:
         return func.HttpResponse("Payload không hợp lệ.", status_code=400)
+
 
 # =====================================================================
 # HÀM 2: WORKER (Service Bus -> MongoDB)
@@ -53,10 +52,10 @@ def http_to_service_bus(
 @app.service_bus_queue_trigger(
     arg_name="azservicebus",
     queue_name="ticket-queue",
-    connection="SERVICE_BUS_CONNECTION_STRING"
+    connection="SERVICE_BUS_CONNECTION_STRING",
 )
 def ticket_processing_worker(azservicebus: func.ServiceBusMessage):
-    message_body = azservicebus.get_body().decode('utf-8')
+    message_body = azservicebus.get_body().decode("utf-8")
     try:
         ticket_data = json.loads(message_body)
         collection.insert_one(ticket_data)

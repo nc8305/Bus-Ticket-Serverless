@@ -19,24 +19,24 @@ import time
 # =============================================================================
 
 KAFKA_CONFIG = {
-    'bootstrap.servers': 'localhost:9092',
-    'group.id': 'speed-layer-consumer',
-    'auto.offset.reset': 'latest',
-    'enable.auto.commit': True,
-    'auto.commit.interval.ms': 1000,
-    'session.timeout.ms': 45000,
-    'heartbeat.interval.ms': 30000,
+    "bootstrap.servers": "localhost:9092",
+    "group.id": "speed-layer-consumer",
+    "auto.offset.reset": "latest",
+    "enable.auto.commit": True,
+    "auto.commit.interval.ms": 1000,
+    "session.timeout.ms": 45000,
+    "heartbeat.interval.ms": 30000,
 }
 
 POSTGRES_CONFIG = {
-    'host': 'localhost',
-    'port': 5432,
-    'database': 'bus_analytics',
-    'user': 'admin',
-    'password': 'admin123',
+    "host": "localhost",
+    "port": 5432,
+    "database": "bus_analytics",
+    "user": "admin",
+    "password": "admin123",
 }
 
-TOPICS = ['bus-gps-tracking']
+TOPICS = ["bus-gps-tracking"]
 
 # =============================================================================
 # DATABASE CONNECTION POOL
@@ -45,9 +45,7 @@ TOPICS = ['bus-gps-tracking']
 
 class DatabasePool:
     def __init__(self, config, min_conn=2, max_conn=10):
-        self.pool = pool.ThreadedConnectionPool(
-            min_conn, max_conn, **config
-        )
+        self.pool = pool.ThreadedConnectionPool(min_conn, max_conn, **config)
 
     def get_connection(self):
         return self.pool.getconn()
@@ -57,6 +55,7 @@ class DatabasePool:
 
     def close_all(self):
         self.pool.closeall()
+
 
 # =============================================================================
 # SPEED LAYER PROCESSOR
@@ -89,10 +88,7 @@ class SpeedLayerProcessor:
         print("Speed Layer Consumer Starting...")
         print(f"Topics: {self.topics}")
         print(f"Kafka: {KAFKA_CONFIG['bootstrap.servers']}")
-        print(
-            f"PostgreSQL: {POSTGRES_CONFIG['host']}:"
-            f"{POSTGRES_CONFIG['port']}"
-        )
+        print(f"PostgreSQL: {POSTGRES_CONFIG['host']}:" f"{POSTGRES_CONFIG['port']}")
         print("-" * 50)
 
         self.consumer.subscribe(self.topics)
@@ -130,25 +126,25 @@ class SpeedLayerProcessor:
     def _process_message(self, msg):
         """Process a single Kafka message"""
         try:
-            value = json.loads(msg.value().decode('utf-8'))
+            value = json.loads(msg.value().decode("utf-8"))
 
             # Parse and validate
             record = {
-                'vehicle_id': value.get('vehicle'),
-                'latitude': value.get('lat'),
-                'longitude': value.get('lng'),
-                'speed': value.get('speed'),
-                'driver_id': str(value.get('driver', '')),
-                'door_up': value.get('door_up', False),
-                'door_down': value.get('door_down', False),
-                'event_time': value.get('datetime'),
+                "vehicle_id": value.get("vehicle"),
+                "latitude": value.get("lat"),
+                "longitude": value.get("lng"),
+                "speed": value.get("speed"),
+                "driver_id": str(value.get("driver", "")),
+                "door_up": value.get("door_up", False),
+                "door_down": value.get("door_down", False),
+                "event_time": value.get("datetime"),
             }
 
             # Validate required fields
             if (
-                not record['vehicle_id']
-                or record['latitude'] is None
-                or record['longitude'] is None
+                not record["vehicle_id"]
+                or record["latitude"] is None
+                or record["longitude"] is None
             ):
                 self.failed_count += 1
                 return
@@ -196,21 +192,30 @@ class SpeedLayerProcessor:
             # 1. Chuẩn bị list data (Tuple) thay vì vòng lặp execute
             data_to_insert = [
                 (
-                    record['vehicle_id'], record['latitude'],
-                    record['longitude'], record['speed'],
-                    record['driver_id'], record['door_up'],
-                    record['door_down'], record['event_time']
-                ) for record in self.batch
+                    record["vehicle_id"],
+                    record["latitude"],
+                    record["longitude"],
+                    record["speed"],
+                    record["driver_id"],
+                    record["door_up"],
+                    record["door_down"],
+                    record["event_time"],
+                )
+                for record in self.batch
             ]
 
             # Đối với bảng realtime, data tương tự nhưng không có event_time
             data_to_realtime = [
                 (
-                    record['vehicle_id'], record['latitude'],
-                    record['longitude'], record['speed'],
-                    record['driver_id'], record['door_up'],
-                    record['door_down']
-                ) for record in self.batch
+                    record["vehicle_id"],
+                    record["latitude"],
+                    record["longitude"],
+                    record["speed"],
+                    record["driver_id"],
+                    record["door_up"],
+                    record["door_down"],
+                )
+                for record in self.batch
             ]
 
             # 2. Thực hiện BULK INSERT (Ghi cục dữ liệu lớn trong 1 lần)
@@ -259,6 +264,7 @@ class SpeedLayerProcessor:
         print(f"  Failed: {self.failed_count}")
         print("Speed Layer Consumer stopped.")
 
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -266,8 +272,6 @@ class SpeedLayerProcessor:
 
 if __name__ == "__main__":
     processor = SpeedLayerProcessor(
-        kafka_config=KAFKA_CONFIG,
-        postgres_config=POSTGRES_CONFIG,
-        topics=TOPICS
+        kafka_config=KAFKA_CONFIG, postgres_config=POSTGRES_CONFIG, topics=TOPICS
     )
     processor.start()
