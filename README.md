@@ -92,7 +92,7 @@ python load_tester/demo_load_tester.py --mode server --requests 50000 --type gps
 ```bash
 python load_tester/demo_load_tester.py --mode serverless --requests 50000 --type ticket
 ```
-*(Note: You must replace `<LINK_AZURE_API_CUA_BAN_SAU_NAY>` in the `demo_load_tester.py` file with the real API link).*
+<!-- *(Note: You must replace `<LINK_AZURE_API_CUA_BAN_SAU_NAY>` in the `demo_load_tester.py` file with the real API link).* -->
 
 **Run PARALLEL Race (Ultimate Demo):**
 ```bash
