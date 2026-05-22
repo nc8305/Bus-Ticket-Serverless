@@ -94,8 +94,12 @@ def generate_daily_vehicle_summary(df, report_date):
             avg("speed").alias("avg_speed"),
             max("speed").alias("max_speed"),
             count("*").alias("total_events"),
-            sum(when(col("door_up"), 1).otherwise(0)).alias("total_passengers_up"),
-            sum(when(col("door_down"), 1).otherwise(0)).alias("total_passengers_down"),
+            sum(when(col("door_up"), 1).otherwise(0)).alias(
+                "total_passengers_up"
+            ),
+            sum(when(col("door_down"), 1).otherwise(0)).alias(
+                "total_passengers_down"
+            ),
             count(when(col("speed") == 0, True)).alias("total_stops"),
     ) \
         .withColumn("report_date", lit(report_date).cast("date")) \
@@ -124,8 +128,10 @@ def generate_hourly_traffic_analysis(df, report_date):
         .agg(
             count("vehicle").alias("total_buses_active"),
             avg("speed").alias("avg_speed"),
-            sum(when(col("door_up"), 1).otherwise(0) +
-                when(col("door_down"), 1).otherwise(0)).alias("total_door_events"),
+            sum(
+                when(col("door_up"), 1).otherwise(0) +
+                when(col("door_down"), 1).otherwise(0)
+            ).alias("total_door_events"),
     ) \
         .withColumn("report_date", lit(report_date).cast("date"))
 

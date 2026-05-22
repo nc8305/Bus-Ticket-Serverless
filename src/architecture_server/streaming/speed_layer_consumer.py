@@ -2,7 +2,8 @@
 SPEED LAYER - Kafka to PostgreSQL Consumer
 Lambda Architecture - Real-time Processing
 
-This consumer reads from Kafka and writes to PostgreSQL for real-time visualization.
+This consumer reads from Kafka and writes to PostgreSQL
+for real-time visualization.
 """
 
 import json
@@ -88,7 +89,10 @@ class SpeedLayerProcessor:
         print("Speed Layer Consumer Starting...")
         print(f"Topics: {self.topics}")
         print(f"Kafka: {KAFKA_CONFIG['bootstrap.servers']}")
-        print(f"PostgreSQL: {POSTGRES_CONFIG['host']}:{POSTGRES_CONFIG['port']}")
+        print(
+            f"PostgreSQL: {POSTGRES_CONFIG['host']}:"
+            f"{POSTGRES_CONFIG['port']}"
+        )
         print("-" * 50)
 
         self.consumer.subscribe(self.topics)
@@ -99,7 +103,8 @@ class SpeedLayerProcessor:
 
                 if msg is None:
                     # Check if we need to flush batch
-                    if self.batch and (time.time() - self.last_flush) > self.flush_interval:
+                    time_diff = time.time() - self.last_flush
+                    if self.batch and time_diff > self.flush_interval:
                         self._flush_batch()
                     continue
 
@@ -167,7 +172,7 @@ class SpeedLayerProcessor:
             # Insert into stream table
             stream_sql = """
                 INSERT INTO bus_tracking_stream
-                (vehicle_id, latitude, longitude, speed, 
+                (vehicle_id, latitude, longitude, speed,
                  driver_id, door_up, door_down, event_time)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """
@@ -175,7 +180,7 @@ class SpeedLayerProcessor:
             # Update realtime location table
             realtime_sql = """
                 INSERT INTO bus_realtime_location
-                (vehicle_id, latitude, longitude, speed, 
+                (vehicle_id, latitude, longitude, speed,
                  driver_id, door_up, door_down, last_updated)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
                 ON CONFLICT (vehicle_id) DO UPDATE SET
@@ -188,27 +193,33 @@ class SpeedLayerProcessor:
                     last_updated = NOW()
             """
 
-            # 1. Chuẩn bị danh sách dữ liệu (Tuple) thay vì chạy vòng lặp execute
+            # 1. Chuẩn bị list data (Tuple) thay vì vòng lặp execute
             data_to_insert = [
                 (
-                    record['vehicle_id'], record['latitude'], record['longitude'],
-                    record['speed'], record['driver_id'], record['door_up'],
+                    record['vehicle_id'], record['latitude'],
+                    record['longitude'], record['speed'],
+                    record['driver_id'], record['door_up'],
                     record['door_down'], record['event_time']
                 ) for record in self.batch
             ]
 
-            # Đối với bảng realtime, cấu trúc data tương tự nhưng không có event_time
+            # Đối với bảng realtime, data tương tự nhưng không có event_time
             data_to_realtime = [
                 (
-                    record['vehicle_id'], record['latitude'], record['longitude'],
-                    record['speed'], record['driver_id'], record['door_up'],
+                    record['vehicle_id'], record['latitude'],
+                    record['longitude'], record['speed'],
+                    record['driver_id'], record['door_up'],
                     record['door_down']
                 ) for record in self.batch
             ]
 
-            # 2. Thực hiện BULK INSERT (Ghi một cục dữ liệu lớn trong 1 lần gọi)
-            psycopg2.extras.execute_batch(cursor, stream_sql, data_to_insert, page_size=1000)
-            psycopg2.extras.execute_batch(cursor, realtime_sql, data_to_realtime, page_size=1000)
+            # 2. Thực hiện BULK INSERT (Ghi cục dữ liệu lớn trong 1 lần)
+            psycopg2.extras.execute_batch(
+                cursor, stream_sql, data_to_insert, page_size=1000
+            )
+            psycopg2.extras.execute_batch(
+                cursor, realtime_sql, data_to_realtime, page_size=1000
+            )
 
             conn.commit()
 

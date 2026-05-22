@@ -27,7 +27,9 @@ except Exception as e:
     connection="SERVICE_BUS_CONNECTION_STRING",
     queue_name="ticket-queue"
 )
-def http_to_service_bus(req: func.HttpRequest, msg: func.Out[str]) -> func.HttpResponse:
+def http_to_service_bus(
+    req: func.HttpRequest, msg: func.Out[str]
+) -> func.HttpResponse:
     try:
         # Nhận cục JSON từ Load Tester
         req_body = req.get_json()
@@ -37,7 +39,7 @@ def http_to_service_bus(req: func.HttpRequest, msg: func.Out[str]) -> func.HttpR
 
         return func.HttpResponse(
             "Đã ghi nhận yêu cầu đặt vé vào hàng đợi!",
-            status_code=202  # HTTP 202: Accepted (Đã tiếp nhận nhưng chưa xử lý xong)
+            status_code=202  # HTTP 202: Đã tiếp nhận nhưng chưa xử lý xong
         )
     except ValueError:
         return func.HttpResponse("Payload không hợp lệ.", status_code=400)

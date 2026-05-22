@@ -8,9 +8,9 @@ from aiokafka import AIOKafkaProducer
 # Trả về đúng data GPS nguyên bản
 def generate_gps_payload(vehicle_index):
     return {
-        "vehicle_id": f"bus_SG_{vehicle_index % 500}",  # Giả lập 500 chiếc xe buýt
+        "vehicle_id": f"bus_SG_{vehicle_index % 500}",
         "route_id": f"route_{random.randint(1, 100)}",
-        "latitude": 10.762622 + random.uniform(-0.05, 0.05),  # Quanh khu vực TP.HCM
+        "latitude": 10.762622 + random.uniform(-0.05, 0.05),
         "longitude": 106.660172 + random.uniform(-0.05, 0.05),
         "timestamp": time.time(),
         "speed": random.randint(0, 60)
@@ -33,8 +33,10 @@ async def fire_requests(producer, topic_name, total_requests):
     for i in range(total_requests):
         payload = generate_gps_payload(i)
         message = json.dumps(payload).encode('utf-8')
-
-        tasks.append(asyncio.create_task(send_with_semaphore(producer, topic_name, message)))
+        task = asyncio.create_task(
+            send_with_semaphore(producer, topic_name, message)
+        )
+        tasks.append(task)
 
     print("BẮT ĐẦU NÃ 50.000 TỌA ĐỘ VÀO KAFKA CÙNG LÚC!")
     await asyncio.gather(*tasks)
@@ -56,7 +58,10 @@ async def main():
         await producer.stop()
 
     end_time = time.time()
-    print(f"\n[Kết quả Test] Hoàn thành đẩy 50.000 record trong: {end_time - start_time:.2f} giây")
+    print(
+        f"\n[Kết quả Test] Hoàn thành đẩy 50.000 record "
+        f"trong: {end_time - start_time:.2f} giây"
+    )
 
 
 if __name__ == "__main__":
