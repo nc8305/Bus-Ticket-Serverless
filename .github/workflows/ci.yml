@@ -1,0 +1,119 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # ─────────────────────────────────────────
+  # JOB 1: Lint & Format check
+  # ─────────────────────────────────────────
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install lint tools
+        run: |
+          pip install flake8 black
+
+      - name: Run flake8 (style & syntax check)
+        run: |
+          flake8 src/ \
+            --max-line-length=100 \
+            --exclude=__pycache__ \
+            --statistics
+
+      - name: Run black (formatting check)
+        run: |
+          black --check --diff src/
+
+  # ─────────────────────────────────────────
+  # JOB 2: Validate Docker Compose config
+  # ─────────────────────────────────────────
+  validate-docker:
+    name: Validate Docker Compose
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Validate docker-compose.yml syntax
+        run: docker compose config --quiet
+
+      - name: Check all required services are declared
+        run: |
+          SERVICES=$(docker compose config --services)
+          echo "Declared services:"
+          echo "$SERVICES"
+          for svc in kafka zookeeper postgres grafana; do
+            if echo "$SERVICES" | grep -q "$svc"; then
+              echo "✅  $svc found"
+            else
+              echo "❌  $svc NOT found"
+              exit 1
+            fi
+          done
+
+  # ─────────────────────────────────────────
+  # JOB 3: Unit Tests
+  # ─────────────────────────────────────────
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-cov
+          pip install -r requirements.txt
+
+      - name: Run unit tests with coverage
+        run: |
+          pytest tests/ -v \
+            --tb=short \
+            --cov=src \
+            --cov-report=term-missing
+
+      - name: Upload coverage summary
+        if: always()
+        run: |
+          echo "## Test Coverage" >> $GITHUB_STEP_SUMMARY
+          pytest tests/ --cov=src --cov-report=term-missing --tb=no -q 2>/dev/null \
+            | tail -n 5 >> $GITHUB_STEP_SUMMARY || true
