@@ -1,6 +1,6 @@
 # 🚌 Bus System Dual Architecture (Server & Serverless)
 
-[![CI Pipeline](https://github.com/YOUR_USERNAME/YOUR_REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/YOUR_REPO/actions/workflows/ci.yml)
+![CI](https://github.com/nc8305/Bus-Ticket-Serverless/actions/workflows/ci.yml/badge.svg)
 
 The **Big Data & Serverless Pipeline** system processes bus data (GPS & Ticketing). The project includes two architectures that can run independently or in parallel for comparison and demo presentations:
 
