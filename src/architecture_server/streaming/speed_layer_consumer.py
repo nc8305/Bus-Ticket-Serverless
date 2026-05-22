@@ -6,10 +6,8 @@ This consumer reads from Kafka and writes to PostgreSQL for real-time visualizat
 """
 
 import json
-import sys
 import signal
 import psycopg2.extras
-from datetime import datetime
 from confluent_kafka import Consumer, KafkaError, KafkaException
 import psycopg2
 from psycopg2 import pool
@@ -43,9 +41,10 @@ TOPICS = ['bus-gps-tracking']
 # DATABASE CONNECTION POOL
 # =============================================================================
 
+
 class DatabasePool:
     def __init__(self, config, min_conn=2, max_conn=10):
-        self.pool = psycopg2.pool.ThreadedConnectionPool(
+        self.pool = pool.ThreadedConnectionPool(
             min_conn, max_conn, **config
         )
     
@@ -61,6 +60,7 @@ class DatabasePool:
 # =============================================================================
 # SPEED LAYER PROCESSOR
 # =============================================================================
+
 
 class SpeedLayerProcessor:
     def __init__(self, kafka_config, postgres_config, topics):
@@ -85,7 +85,7 @@ class SpeedLayerProcessor:
     
     def start(self):
         """Start consuming messages"""
-        print(f"Speed Layer Consumer Starting...")
+        print("Speed Layer Consumer Starting...")
         print(f"Topics: {self.topics}")
         print(f"Kafka: {KAFKA_CONFIG['bootstrap.servers']}")
         print(f"PostgreSQL: {POSTGRES_CONFIG['host']}:{POSTGRES_CONFIG['port']}")
@@ -140,14 +140,18 @@ class SpeedLayerProcessor:
             }
             
             # Validate required fields
-            if not record['vehicle_id'] or record['latitude'] is None or record['longitude'] is None:
+            if (
+                not record['vehicle_id']
+                or record['latitude'] is None
+                or record['longitude'] is None
+            ):
                 self.failed_count += 1
                 return
             
             self.batch.append(record)
             self.processed_count += 1
             
-        except Exception as e:
+        except Exception:
             self.failed_count += 1
     
     def _flush_batch(self):
@@ -162,14 +166,14 @@ class SpeedLayerProcessor:
             
             # Insert into stream table
             stream_sql = """
-                INSERT INTO bus_tracking_stream 
+                INSERT INTO bus_tracking_stream
                 (vehicle_id, latitude, longitude, speed, driver_id, door_up, door_down, event_time)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """
-            
+
             # Update realtime location table
             realtime_sql = """
-                INSERT INTO bus_realtime_location 
+                INSERT INTO bus_realtime_location
                 (vehicle_id, latitude, longitude, speed, driver_id, door_up, door_down, last_updated)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
                 ON CONFLICT (vehicle_id) DO UPDATE SET
@@ -206,7 +210,10 @@ class SpeedLayerProcessor:
             
             conn.commit()
 
-            print(f"Flushed {len(self.batch)} records | Total: {self.processed_count} | Failed: {self.failed_count}")
+            print(
+                f"Flushed {len(self.batch)} records | "
+                f"Total: {self.processed_count} | Failed: {self.failed_count}"
+            )
             
             self.batch = []
             self.last_flush = time.time()
@@ -219,6 +226,7 @@ class SpeedLayerProcessor:
         finally:
             if conn:
                 self.db_pool.return_connection(conn)
+
     def _shutdown(self):
         """Graceful shutdown"""
         print("\nShutting down...")
@@ -232,8 +240,8 @@ class SpeedLayerProcessor:
         
         # Close database connections
         self.db_pool.close_all()
-        
-        print(f"\nFinal Statistics:")
+
+        print("\nFinal Statistics:")
         print(f"  Processed: {self.processed_count}")
         print(f"  Failed: {self.failed_count}")
         print("Speed Layer Consumer stopped.")
@@ -241,6 +249,7 @@ class SpeedLayerProcessor:
 # =============================================================================
 # MAIN
 # =============================================================================
+
 
 if __name__ == "__main__":
     processor = SpeedLayerProcessor(
