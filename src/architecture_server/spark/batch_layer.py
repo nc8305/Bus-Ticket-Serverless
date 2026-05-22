@@ -8,7 +8,7 @@ and generate aggregated reports in PostgreSQL.
 
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
-    col, count, avg, max, min, sum, hour, date_format,
+    col, count, avg, max, sum, hour, date_format,
     round as spark_round, when, lit
 )
 from pyspark.sql.types import (
@@ -16,7 +16,7 @@ from pyspark.sql.types import (
     BooleanType, TimestampType
 )
 import sys
-from datetime import datetime, timedelta,date
+from datetime import datetime, timedelta, date
 
 # =============================================================================
 # CONFIGURATION
@@ -35,6 +35,7 @@ HDFS_PATH = 'hdfs://namenode:9000/bus-data'
 # SPARK SESSION
 # =============================================================================
 
+
 def create_spark_session():
     """Create Spark session with PostgreSQL support"""
     return SparkSession.builder \
@@ -47,6 +48,7 @@ def create_spark_session():
 # =============================================================================
 # DATA SCHEMA
 # =============================================================================
+
 
 BUS_SCHEMA = StructType([
     StructField("datetime", StringType(), True),
@@ -62,6 +64,7 @@ BUS_SCHEMA = StructType([
 # =============================================================================
 # BATCH PROCESSING FUNCTIONS
 # =============================================================================
+
 
 def load_data(spark, source_path):
     """Load data from CSV or HDFS"""
@@ -91,8 +94,8 @@ def generate_daily_vehicle_summary(df, report_date):
             avg("speed").alias("avg_speed"),
             max("speed").alias("max_speed"),
             count("*").alias("total_events"),
-            sum(when(col("door_up") == True, 1).otherwise(0)).alias("total_passengers_up"),
-            sum(when(col("door_down") == True, 1).otherwise(0)).alias("total_passengers_down"),
+            sum(when(col("door_up"), 1).otherwise(0)).alias("total_passengers_up"),
+            sum(when(col("door_down"), 1).otherwise(0)).alias("total_passengers_down"),
             count(when(col("speed") == 0, True)).alias("total_stops"),
         ) \
         .withColumn("report_date", lit(report_date).cast("date")) \
@@ -121,8 +124,8 @@ def generate_hourly_traffic_analysis(df, report_date):
         .agg(
             count("vehicle").alias("total_buses_active"),
             avg("speed").alias("avg_speed"),
-            sum(when(col("door_up") == True, 1).otherwise(0) +
-                when(col("door_down") == True, 1).otherwise(0)).alias("total_door_events"),
+            sum(when(col("door_up"), 1).otherwise(0) +
+                when(col("door_down"), 1).otherwise(0)).alias("total_door_events"),
         ) \
         .withColumn("report_date", lit(report_date).cast("date"))
     
@@ -150,7 +153,8 @@ def generate_driver_performance(df, report_date):
         ) \
         .withColumn("report_date", lit(report_date).cast("date")) \
         .withColumn("total_distance_km", col("total_events") * 0.01) \
-        .withColumn("safety_score", 
+        .withColumn(
+            "safety_score",
             when(col("speeding_events") == 0, 100)
             .when(col("speeding_events") < 5, 90)
             .when(col("speeding_events") < 10, 80)
