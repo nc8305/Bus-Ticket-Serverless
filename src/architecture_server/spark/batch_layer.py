@@ -300,7 +300,7 @@ def run_batch_job(source_path, report_date=None):
 if __name__ == "__main__":
     # Default paths
     source_path = "data/raw_2025-04-01.csv"
-    report_date = date.today()
+    report_date = date.today().strftime("%Y-%m-%d")
 
     # Parse command line arguments
     if len(sys.argv) > 1:
